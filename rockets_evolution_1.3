@@ -1,0 +1,468 @@
+/*TODO 
+ * finish fitness algorithm
+ * map the graphs of data onto the rockets array, and test for pop size > 1
+ * 
+*/
+int rows = 40;
+int cols = 40;
+float shift_x = 0;
+float shift_y = 0;
+float time = 0;
+float object1_m = 150;
+float object2_m = 20;
+float rocket_m = 1;
+float G_const = 10; //TODO find that shit
+float GFVector = 10;
+float scale = 100; //for debug shit
+int frame_counter = 0;
+float fihat = 0;
+float fjhat = 0;
+
+
+//rocket physics data
+PVector pos, vel, acc;
+float xpos_0 = 0;
+float ypos_0 = -370;
+float xvel_0 = 2.85;
+float yvel_0 = 0;
+float xacc_0 = 0;
+float yacc_0 = 0;
+float angle = 0; // 0 < theta < 2pi
+float throttle = 0; // 0 < throttle < 1 //what % is my pedal to the floor?
+float trottle_max_force = 0.3; //i.e peddle to the floor
+float Force_Threshold = 3.68;
+float fuel_used = 0;
+
+//rocket arrays
+int pop_size = 50;
+int id = 0;
+int index = 11;
+int active_time = 100, inactive_time = 100; //active is the # of frames a rocket can manipulate itself, during passive time the rocket cannot rotate or thrust
+int time_length = active_time + inactive_time;
+int time_step = 0;
+float fitness = 0;
+float StableOrbitGoodBoyPoints = 0;
+float[][][] rockets = new float[pop_size][index][time_length];
+
+//for graph data
+float[] graph_angle = new float[time_length];
+float[] graph_throttle = new float[time_length];
+float[] graph_xpos = new float[time_length];
+float[] graph_ypos = new float[time_length];
+
+
+void setup(){
+  size(1000, 1000);
+  background(0);
+  frameRate(400);
+  
+  pos = new PVector(xpos_0, ypos_0);
+  vel = new PVector(xvel_0, yvel_0);
+  acc = new PVector(xacc_0, yacc_0);
+  
+  init_pop();
+}
+
+void draw() {
+//DrawBackgroundShit();
+frame_counter++;
+
+
+shift_x = height/2.5 * sin(time);
+shift_y = -width/2.5* cos(time);
+
+
+CheckCollision();
+ApplyRocketPhysics();
+MapData();
+//DrawRocket();
+//PrintTextInfo();
+
+
+
+time += 0.002;
+time_step++;
+
+//evlauates the fittness of the rocket
+Get_StableOrbitGoodBoyPoints();
+if(time_step == time_length)
+{
+  GetFitness();
+  println(id + "  :  ");
+  println("fitness " + rockets[id][8][0]);
+  println("fuel_used " + rockets[id][9][0]);
+  println("stable orbit good boy points " + rockets[id][10][0] +"\n");
+  time_reset();
+  
+}
+
+
+point(100, 0);
+
+
+//println(acc.x + " : " + acc.y);
+//println(pos.x + " : " + pos.y + " : " + counter);
+//saveFrame("output/Gravity_vector_feild_####.png");
+}
+
+
+void MapData(){
+ //rockets[id][0][time_step] = angle;
+ //rockets[id][1][time_step] = throttle;
+ rockets[id][2][time_step] = pos.x;
+ rockets[id][3][time_step] = pos.y;
+ rockets[id][4][time_step] = vel.x;
+ rockets[id][5][time_step] = vel.y;
+ rockets[id][6][time_step] = acc.x;
+ rockets[id][7][time_step] = acc.y;
+}
+
+void GetFitness(){
+
+  //gives an increasing value of fitness the closer a rocket gets to the target
+ if (dist(0, 0, pos.x, pos.y) > 100)
+ {
+   fitness = 1000 - dist(0, 0, pos.x, pos.y);
+ }
+ else
+ {
+   fitness = 900;
+ }
+ 
+ //adds up all the throttle values to calulate how much fuel was used
+ for(int i = 0; i < time_length; i++)
+ {
+   fuel_used += graph_throttle[i];
+ }
+ 
+ fitness -= fuel_used;
+ 
+ //adds good boy points for a stable orbit
+ fitness += StableOrbitGoodBoyPoints;
+ 
+ rockets[id][8][0] = fitness;
+ rockets[id][9][0] = fuel_used;
+ rockets[id][10][0] = StableOrbitGoodBoyPoints;
+ 
+}
+
+void Get_StableOrbitGoodBoyPoints(){
+  //if the rocket is inactive and close to the sun, it gains fitness the longer it stays there
+  if((time_step > active_time) && (dist(0, 0, pos.x, pos.y) < 100))
+  {
+    StableOrbitGoodBoyPoints++;
+  }
+}
+
+
+void CheckCollision(){
+ if(acc.x > Force_Threshold || acc.y > Force_Threshold)
+ {
+   //println("Collision!!  " + acc.x + " , " + acc.y);
+   fitness -= 10000000; //:( bad rocket
+   println(id + "  :  \n" + "Collision!\n");
+   time_reset();
+ }
+}
+
+void time_reset() {
+    time = 0;
+    time_step = 0;
+    fitness = 0;
+    fuel_used = 0;
+    StableOrbitGoodBoyPoints = 0;
+    pos = new PVector(xpos_0, ypos_0);
+    vel = new PVector(xvel_0, yvel_0);
+    acc = new PVector(xacc_0, yacc_0);
+    
+    if(id == (pop_size-1))
+    {
+      //sort pop
+      //dup n mutate pop
+      //id = 0;
+    }
+
+    id++; 
+
+}
+
+void ApplyRocketPhysics(){ 
+acc.x = 0;
+acc.y = 0;
+fihat = 0;
+fjhat = 0;
+angle = rockets[id][0][time_step];
+throttle = rockets[id][1][time_step];
+GetThrustV(angle, throttle);
+GetPlanetSunGV(pos.x, pos.y);
+vel.add(acc);
+pos.add(vel); 
+}
+
+void init_pop(){
+  //cycles through the members of the population and initalizes them with random floats for angle and throttle
+  for(int n = 0; n < pop_size; n++)
+  {
+    //cycles through the different indexes
+      for(int t = 0; t < active_time; t++)
+      {
+        rockets[n][0][t] = random(0, PI * 2);
+        rockets[n][1][t] = random(0, 1);
+      }
+  }
+  
+}
+
+void GetThrustV(float angle, float throttle){
+  float force = throttle * trottle_max_force;
+  acc.x += force * cos(angle);
+  acc.y += force * sin(angle);
+}
+
+void DrawRocket() {
+  strokeWeight(3);
+  point(pos.x,pos.y);
+  strokeWeight(1); 
+}
+
+//calculates the force of gravity
+void GetGVector(float m1, float m2, float d){
+  GFVector = G_const * (m1 * m2) / (d*d);
+}
+
+
+//gets the plantets and suns gravity force and adds it to the rockets accelleration
+void GetPlanetSunGV(float xpos, float ypos){
+ 
+  float magnitude = 0;
+  float ihat = 0;
+  float jhat = 0;
+       //planets gravity vector feild 
+       ihat = -(xpos-shift_x) / (((xpos-shift_x) * (xpos-shift_x)) + ((ypos-shift_y) * (ypos-shift_y)));
+       jhat = -(ypos-shift_y) / (((xpos-shift_x) * (xpos-shift_x)) + ((ypos-shift_y) * (ypos-shift_y)));
+       
+       //to make everything a unit vector
+       magnitude = sqrt((ihat*ihat)+(jhat*jhat));
+       ihat =  ihat / magnitude;
+       jhat =  jhat / magnitude;
+       
+       //magnitude of the force gravity vector
+       GetGVector(rocket_m, object2_m, sqrt(((xpos-shift_x)*(xpos-shift_x)) + ((ypos-shift_y)*(ypos-shift_y))) );
+       ihat *= GFVector;
+       jhat *= GFVector;
+       
+       //adds it to the master accelleration vector
+       acc.x += ihat;
+       acc.y += jhat;
+       fihat += ihat;
+       fjhat += jhat;
+         
+       //the suns gravity vector feild
+       ihat = -(xpos) / ((xpos * xpos) + (ypos * ypos));
+       jhat = -(ypos) / ((xpos * xpos) + (ypos * ypos));
+       
+       //to make everything a unit vector
+       magnitude = sqrt((ihat*ihat)+(jhat*jhat));
+       ihat =  ihat / magnitude;
+       jhat =  jhat / magnitude;
+       
+       //to find the magnitude of the force gravity vector
+       GetGVector(rocket_m, object1_m, sqrt((xpos * xpos) + (ypos * ypos)) );
+       ihat *= GFVector;
+       jhat *= GFVector;
+       
+       //adds it to the master accelleration vector
+       acc.x += ihat;
+       acc.y += jhat;
+       fihat += ihat;
+       fjhat += jhat;
+}
+
+void DrawBackgroundShit(){
+ clear();
+
+ translate(width/2, height/2);
+ 
+ stroke(255);
+ strokeWeight(30);
+ point(0,0);
+ strokeWeight(1);
+ noFill();
+
+ //draws the faint circles to show distance from center
+ stroke(40);
+  for(int i=3; i < 2 * rows; i++)
+  {
+    ellipse(0, 0, i * width/rows, i * height/cols);
+  }
+     stroke(255);
+     strokeWeight(5);
+     point(shift_x, shift_y);
+     strokeWeight(1);
+}
+
+/*
+ ======================================
+ 
+              DEBUG LAND
+   ABANDON ALL HOPE, YE WHO ENTER HERE
+ 
+ =======================================
+*/
+
+/*
+float[] graph_xpos = new float[time_length];
+float[] graph_ypos = new float[time_length];
+float[] graph_angle = new float[time_length];
+float[] graph_throttle = new float[time_length];
+*/
+
+void PrintTextInfo(){
+  fill(0);
+  rect(-500,-500, time_length + 30, 270);
+  fill(255);
+  
+  text("Frames: " + time_step + " / " + time_length,-480, -480);
+  text("i.d.: "+ id, -380, -480);
+  if(time_step < active_time)
+  {
+    text("ACTIVE" ,-480, -465);
+  }
+  else 
+  {
+    text("INACTIVE" ,-480, -465);  
+  }
+    
+  //graphs the xpos over time  
+  graph_xpos[time_step] = pos.x;
+  graph_ypos[time_step] = pos.y;
+  graph_angle[time_step] = rockets[id][0][time_step];
+  graph_throttle[time_step] = rockets[id][1][time_step];
+  
+  stroke(50);
+
+  //0 line for xyPos time graph
+  line(-480, -400, -480 + time_length,-400);
+  
+  // pi line for the angle graph
+  line(-480, -330 + PI*8, -480 + time_length,-330 + PI*8);
+  stroke(255);
+  
+  
+  for(int i = 0; i < time_length; i++)
+  {
+    if(i < time_step)
+    {
+      //graphs x pos over time 
+      stroke(250, 0, 0);
+      point(-480 + i, (-400) + graph_xpos[i] / 10);
+      //graphs y pos over time
+      stroke(84, 135, 255);
+      point(-480 + i, (-400) + graph_ypos[i] / 10);
+      
+      //graphs angle over time
+      point(-480 + i, (-330) + graph_angle[i] * 8);
+      
+      //graphs throttle over time
+      stroke(250, 0, 0);
+      point(-480 + i, (-240) - graph_throttle[i] * 25);
+      stroke(255);
+    
+    
+    }
+  }
+  //draws the total force vector from the rocket (gravity and thrust)
+  if(time_step < active_time)
+  {
+    stroke(252, 3, 3);
+    line(pos.x, pos.y, (scale * acc.x) + pos.x, (scale * acc.y) + pos.y); 
+  }
+  
+  //draws gravity force vector
+  stroke(255);
+  line(pos.x,  pos.y, pos.x + (50*fihat), pos.y + (50*fjhat));
+  
+  //draws the prograde vector
+  if(time_step > 0)
+  {
+    float mag = dist(pos.x, pos.y, vel.x + pos.x, vel.y + pos.y);
+    stroke(65, 252, 3);
+    line(pos.x, pos.y, (10*(vel.x/mag) + pos.x), (10*(vel.y/mag) + pos.y));
+  }
+}
+
+void Debug_rocket_DNA() {
+  for(int i = 0; i < time_length; i++)
+  {
+   print(rockets[0][0][i] + "  "); 
+  }
+  println("\n");
+    for(int i = 0; i < time_length; i++)
+  {
+   print(rockets[0][1][i] + "  "); 
+  }
+}
+
+void Debug_GetVFeild(){
+  
+  //draws vector feild
+ for(int i = -cols; i < cols; i++)
+ {
+   for(int j = -rows; j < rows; j++)
+     {
+      float scale = 3;
+      float magnitude = 0;
+      float xpos = 0;
+      float ypos = 0; 
+      float ihat = 0;
+      float jhat = 0;
+      float fihat = 0;
+      float fjhat = 0;
+      
+      xpos = i * (width/cols);
+      ypos = j * (height/rows);
+           
+       //planets gravity vector feild 
+       ihat = -(xpos-shift_x) / (((xpos-shift_x) * (xpos-shift_x)) + ((ypos-shift_y) * (ypos-shift_y)));
+       jhat = -(ypos-shift_y) / (((xpos-shift_x) * (xpos-shift_x)) + ((ypos-shift_y) * (ypos-shift_y)));
+       
+       //to make everything a unit vector
+       magnitude = sqrt((ihat*ihat)+(jhat*jhat));
+       ihat =  ihat / magnitude;
+       jhat =  jhat / magnitude;
+       
+       //magnitude of the force gravity vector
+       GetGVector(rocket_m, object2_m, sqrt(((xpos-shift_x)*(xpos-shift_x)) + ((ypos-shift_y)*(ypos-shift_y))) );
+       ihat *= GFVector;
+       jhat *= GFVector;
+       
+       fihat = ihat;
+       fjhat = jhat;
+         
+       //the suns gravity vector feild
+       ihat = -(xpos) / ((xpos * xpos) + (ypos * ypos));
+       jhat = -(ypos) / ((xpos * xpos) + (ypos * ypos));
+       
+       //to make everything a unit vector
+       magnitude = sqrt((ihat*ihat)+(jhat*jhat));
+       ihat =  ihat / magnitude;
+       jhat =  jhat / magnitude;
+       
+       //to find the magnitude of the force gravity vector
+       GetGVector(rocket_m, object1_m, sqrt((xpos * xpos) + (ypos*ypos)) );
+       ihat *= GFVector;
+       jhat *= GFVector;
+       
+       fihat += ihat;
+       fjhat += jhat;
+       
+       line(xpos, ypos, (scale * fihat) + xpos, (scale * fjhat) + ypos);
+       //line(xpos, ypos, (scale * fihat) + xpos, (scale * fjhat) + ypos);
+       point(xpos, ypos);
+       strokeWeight(5);
+       point(shift_x, shift_y);
+       strokeWeight(1);
+     }
+ }
+  
+}
