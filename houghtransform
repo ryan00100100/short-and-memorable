@@ -1,0 +1,152 @@
+PImage img;
+int i = 370;
+int j = 50;
+float theta = 2;
+
+//points of intersection for the +tolerance line
+float px1, px2, py1, py2;
+int temp;
+
+void setup() {
+ size(500, 500); 
+ background(0);
+ img = loadImage("testpic.png");
+ //img = loadImage("pic.png");
+ image(img, 0, 0, width, height);
+ loadPixels(); 
+ updatePixels();
+ //noLoop();
+}
+//
+void draw() {
+   //println(mouseX+" : "+ mouseY + " : "+ brightness(pixels[loc(mouseX, mouseY)]));
+  //draws image and preps it for analysis
+  clear();
+  image(img, 0, 0, width, height);
+  loadPixels(); 
+  updatePixels();
+  check();
+
+  visualshit();
+  //printlnstat();
+  
+  
+  GetIntersectPlus(theta, i, j);
+  LineMarch();
+  println(temp + " : " + theta);
+
+  theta += 0.01;
+
+}
+
+int loc(int x, int y) { //converts cartesian coordinates to pixel coordinates
+ int loc = (x + (y * width)); 
+ return loc; 
+}
+
+void Makex2x1y1y2Intherightorder() {
+  float tempx = 0;
+  float tempy = 0;
+  
+  if(px1 > px2) {
+   px2 = tempx;
+   py2 = tempy;
+   
+   px2 = px1;
+   py2 = py1;
+   
+   px1 = tempx;
+   py1 = tempy;
+  }
+}
+
+int LineMarch() { //"Marches" along the line, adding up all the pixel values
+  int linesum = 0;
+  float rx, ry;
+  int t = 0;
+  float d = dist(px1,py1, px2, py2);
+  
+  strokeWeight(1);
+  stroke(255);
+  for(t = 0; t < d; t++) {
+    rx = px1 + (t/d)*(px2-px1); //parameretrize the line
+    ry = py1 + (t/d)*(py2-py1);
+    stroke(255);
+    point(floor(rx), floor(ry));
+        if (0 < rx && rx < width && 0 < ry && ry < height) {
+      linesum += brightness(pixels[loc(floor(rx), floor(ry))]);
+    }
+  }
+  
+  temp = linesum;
+  return linesum;
+  }
+
+//finds lines intersections with the edges of the image for the +angle tolerance line
+void GetIntersectPlus(float theta, int i, int j) {
+  //converts to y = mx + b
+  float m = -(cos(theta)) / (sin(theta));
+  float PPlus = (i*cos(theta)) + (j*sin(theta));
+  float b = PPlus / sin(theta);
+
+  //checks y intercept when x = 0
+  if(line(0, theta, i, j) < 0) { //if y intercept is < 0
+    py1 = 0;
+    px1 = -b / m;
+  }
+  //if 0 <= y intercept <= height
+  else if(0 <= line(0, theta, i, j) && line(0, theta, i, j) <= height) {
+    px1 = 0;
+    py1 = b;
+  } else { // y intercept > height
+    py1 = height;
+    px1 = (height - b) / m;
+  }
+
+    //checks y intercept when x = img.width
+  if(line(img.width, theta, i, j) < 0) { //if y intercept is < 0
+    py2 = 0;
+    px2 = (-b/m);
+  }
+  //if 0 <= y intercept <= height
+  else if(0 <= line(img.width, theta, i, j) && line(img.width, theta, i, j) <= height) {
+    px2 = img.width;
+    py2 = (m * img.width) + b;
+  } else { // y intercept > height
+    py2 = height;
+    px2 = (height - b) / m;
+  }
+ 
+ }
+
+
+void check() {
+ if (theta > PI) {
+  theta = 0; 
+ }
+ if (theta == PI/2) {
+  theta += 0.005; 
+ }
+}
+
+float line(int x, float theta, int i, int j) {
+  float PPlus = (i*cos(theta)) + (j*sin(theta));
+  float y = (PPlus - (x*cos(theta)))/( sin(theta) );
+  return y;
+}
+
+
+void visualshit() {
+  strokeWeight(1);
+  //stroke(255, 0, 0); //red
+  //line(0, line(0, theta, i, j), img.width, line(img.width, theta, i, j));
+  stroke(0, 255, 0 );
+  strokeWeight(5);
+  point(i,j);
+}
+
+void printlnstat() {
+  println(px1 +" : "+ py1 + "\n" + px2 +" : "+ py2);
+  println("\n");
+  println("\n");
+  }
