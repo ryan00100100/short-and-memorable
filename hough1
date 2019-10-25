@@ -1,0 +1,161 @@
+PImage img;
+int i;
+int j;
+float theta = 0;
+float thetaincrement = 0.01;
+
+//points of intersection for the +tolerance line
+float px1, px2, py1, py2;
+int temp;
+
+float[][] picData = new float[500 + (500*500)][5];
+float[][] lineSums = new int[500 + (500*500)][round(PI/thetaincrement)+1];
+
+void setup() {
+ size(500, 500); 
+ background(0);
+ frameRate(100);
+ img = loadImage("testpic.png");
+ //img = loadImage("pic.png");
+ image(img, 0, 0, width, height);
+ loadPixels(); 
+ updatePixels();
+ 
+ noLoop();
+}
+//
+void draw() {
+   //println(mouseX+" : "+ mouseY + " : "+ brightness(pixels[loc(mouseX, mouseY)]));
+  //draws image and preps it for analysis
+ image(img, 0, 0, width, height);
+ loadPixels(); 
+ updatePixels();
+
+  houghTransform();
+
+}
+
+/*
+picData[loc(x,y)][0] = pixel sum
+picData[loc(x,y)][1] = i
+picData[loc(x,y)][2] = j
+picData[loc(x,y)][3] = PPlus
+picData[loc(x,y)][4] = theta
+*/
+void houghTransform() {
+    
+  for(i = 0; i < 500; i++) {
+    for(j = 0; j < 500; j++) {
+println(i +" : "+ j);
+      if(brightness(pixels[loc(i,j)]) > 0) {
+        for(theta = thetaincrement; theta < PI; theta += thetaincrement) {
+          check();
+          
+          GetIntersectPlus(theta, i, j);
+          //need to store linemarch per angle
+          lineSums[loc(i,j)][theta] = linesum;
+          picData[loc(i,j)][1] = i;
+          picData[loc(i,j)][2] = j;
+          picData[loc(i,j)][3] = (i*cos(theta)) + (j*sin(theta)); //PPlus or P
+          picData[loc(i,j)][4] = theta; //TODO find solution for storing theta values
+        }
+      }
+    
+    }
+  }
+
+}
+
+
+int loc(int x, int y) { //converts cartesian coordinates to pixel coordinates
+ int loc = (x + (y * width)); 
+ return loc; 
+}
+
+int LineMarch() { //"Marches" along the line, adding up all the pixel values
+  int linesum = 0;
+  float rx, ry;
+  int t = 0;
+  float d = dist(px1,py1, px2, py2);
+  
+  strokeWeight(1);
+  stroke(255);
+  for(t = 0; t < d; t++) {
+    rx = px1 + (t/d)*(px2-px1); //parameretrize the line
+    ry = py1 + (t/d)*(py2-py1);
+    stroke(255);
+    point(floor(rx), floor(ry));
+        if (0 < rx && rx < width && 0 < ry && ry < height) {
+      linesum += brightness(pixels[loc(floor(rx), floor(ry))]);
+    }
+  }
+  
+  temp = linesum;
+  return linesum;
+  }
+
+//finds lines intersections with the edges of the image for the +angle tolerance line
+void GetIntersectPlus(float theta, int i, int j) {
+  //converts to y = mx + b
+  float m = -(cos(theta)) / (sin(theta));
+  float PPlus = (i*cos(theta)) + (j*sin(theta));
+  float b = PPlus / sin(theta);
+
+  //checks y intercept when x = 0
+  if(line(0, theta, i, j) < 0) { //if y intercept is < 0
+    py1 = 0;
+    px1 = -b / m;
+  }
+  //if 0 <= y intercept <= height
+  else if(0 <= line(0, theta, i, j) && line(0, theta, i, j) <= height) {
+    px1 = 0;
+    py1 = b;
+  } else { // y intercept > height
+    py1 = height;
+    px1 = (height - b) / m;
+  }
+
+    //checks y intercept when x = img.width
+  if(line(img.width, theta, i, j) < 0) { //if y intercept is < 0
+    py2 = 0;
+    px2 = (-b/m);
+  }
+  //if 0 <= y intercept <= height
+  else if(0 <= line(img.width, theta, i, j) && line(img.width, theta, i, j) <= height) {
+    px2 = img.width;
+    py2 = (m * img.width) + b;
+  } else { // y intercept > height
+    py2 = height;
+    px2 = (height - b) / m;
+  }
+ 
+ }
+
+
+void check() {
+ if (theta == PI/2) {
+  theta += thetaincrement; 
+ }
+}
+
+float line(int x, float theta, int i, int j) {
+  float PPlus = (i*cos(theta)) + (j*sin(theta));
+  float y = (PPlus - (x*cos(theta)))/( sin(theta) );
+  return y;
+}
+
+
+void visualshit() {
+  strokeWeight(1);
+  //stroke(255, 0, 0); //red
+  //line(0, line(0, theta, i, j), img.width, line(img.width, theta, i, j));
+  stroke(0, 255, 0 );
+  strokeWeight(5);
+  point(i,j);
+}
+
+void printlnstat() {
+  println(px1 +" : "+ py1 + "\n" + px2 +" : "+ py2);
+  println("\n");
+  println("\n");
+  }
