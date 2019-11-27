@@ -1,0 +1,91 @@
+String[] lines;
+int index = 0;
+
+float px1, px2, py1, py2;
+
+int imgH = 500;
+int imgW = 500;
+int picSize = imgW + (imgH*imgW);
+
+float thetaincrement = 0.03; //MAKE SURE THIS MATCHES WITH THE GENERATOR PROGRAM. SUPER IMPORTANT
+float NumofThetaSteps = round(PI/thetaincrement)+1;
+
+/*
+[0] = line pixel sum
+[1] = P value for hough transform
+[2] = x location
+[3] = y location
+[4] = theta
+*/
+void setup() {
+  size(1000, 500);
+  background(0);
+  stroke(255);
+  frameRate(60);
+  lines = loadStrings("output.txt");
+}
+
+int limit = 1000;
+
+void draw() {
+  //print("starting");
+  if (index < limit) {
+    String[] pieces = split(lines[index], '\t');
+    //if (pieces.length == 5) {
+      int x = int(pieces[2]);
+      int y = int(pieces[3]);
+      int thetastep = int(pieces[4]);
+      float theta = ((thetastep/NumofThetaSteps) * PI);
+      println(theta);
+      GetIntersectPlus(theta, x, y);
+      stroke(255);
+      strokeWeight(1);
+      line(px1, py1, px2, py2);
+   // }
+    // Go to the next line for the next run through draw()
+    index = index + 1;
+  }
+  
+}
+
+float line(int x, float theta, int i, int j) {
+  float PPlus = (i*cos(theta)) + (j*sin(theta));
+  float y = (PPlus - (x*cos(theta)))/( sin(theta) );
+  return y;
+}
+
+void GetIntersectPlus(float theta, int i, int j) {
+  //converts to y = mx + b
+  float m = -(cos(theta)) / (sin(theta));
+  float PPlus = (i*cos(theta)) + (j*sin(theta));
+  float b = PPlus / sin(theta);
+
+  //checks y intercept when x = 0
+  if(line(0, theta, i, j) < 0) { //if y intercept is < 0
+    py1 = 0;
+    px1 = -b / m;
+  }
+  //if 0 <= y intercept <= height
+  else if(0 <= line(0, theta, i, j) && line(0, theta, i, j) <= imgH) {
+    px1 = 0;
+    py1 = b;
+  } else { // y intercept > height
+    py1 = imgH;
+    px1 = (imgH - b) / m;
+  }
+
+    //checks y intercept when x = img.width
+  if(line(imgW, theta, i, j) < 0) { //if y intercept is < 0
+    py2 = 0;
+    px2 = (-b/m);
+  }
+  //if 0 <= y intercept <= height
+  else if(0 <= line(imgW, theta, i, j) && line(imgW, theta, i, j) <= imgH) {
+    px2 = imgW;
+    py2 = (m * imgW) + b;
+  } else { // y intercept > height
+    py2 = imgH;
+    px2 = (imgH - b) / m;
+  }
+ 
+ }
