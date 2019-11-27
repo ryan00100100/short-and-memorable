@@ -1,0 +1,285 @@
+PrintWriter output;
+PImage img;
+int i;
+int j;
+float theta = 0;
+float thetaincrement = 0.03; //was 0.01 //MAKE SURE THIS MATCHES WITH THE DRAWING FUCNTION
+int locRes = 3; //location pixel resulution, highest resulution at 1 
+
+//points of intersection for the +tolerance line
+float px1, px2, py1, py2;
+
+int dx1 = 0,
+    dx2 = 400,
+    dy1 = 0,
+    dy2 = 400;//debug starting values for x and y
+
+
+int imgH = 500;
+int imgW = 500;
+int picSize = imgW + (imgH*imgW);
+
+float[][] lineSums;
+float[][][] PicData = new float[imgW + (imgH*imgW)][round(PI/thetaincrement)+1][5]; //loc, theta and information
+int NumofThetaSteps = round(PI/thetaincrement)+1;
+/*
+PicData[loc][theta][0] = line pixel sum
+PicData[loc][theta][1] = P value for hough transform
+PicData[loc][theta][2] = x location
+PicData[loc][theta][3] = y location
+PicData[loc][theta][4] = theta
+*/
+
+
+
+void setup() {
+ output = createWriter("output.txt");
+ size(500, 500); 
+ background(0);
+ frameRate(100);
+ img = loadImage("testpic.png");
+ image(img, 0, 0, imgW+1, imgH+1);
+ loadPixels(); 
+ updatePixels();
+ 
+ noFill();
+ stroke(255);
+ rect(dx1, dy1, dx2, dy2); //prints out the sample size in a rectangle
+ 
+ println("starting...");
+
+ println("Getting Image Data...\n");
+ //GetImgData();
+ GetImgDataDebug();
+ println("\nOptimizing PicData Array");
+
+ int PosValues = CountPosValues(); //counts non zero values in PicData
+ println("size of array: " + PosValues);
+ println("Number of angle steps: " + NumofThetaSteps + "\n");
+ lineSums = new float[PosValues][5]; //makes an array with only the non zero values
+ int index = 0;
+
+ for (int loc = 0; loc < picSize; loc++) { //copies data from PicData to lineSums arrays
+   for(int anglestep = 0; anglestep < (round(PI/thetaincrement)); anglestep++) {
+     if(PicData[loc][anglestep][0] != 0) {
+       for(int i = 0; i < 5; i++) {
+         lineSums[index][i] = PicData[loc][anglestep][i];
+       }
+       index++;
+     }
+   }
+ }
+ 
+ println("Sorting...");
+ SortLineArrays(PosValues);
+
+ for(int i = 0; i < 1000; i++) { //
+  for(int j = 0; j < 5; j++) {
+    if(i < 5) {
+      print(lineSums[i][j] + " : ");
+    }
+    output.print(lineSums[i][j] + "\t");
+  }
+  println();
+  output.println();
+ }
+
+ output.flush();
+ output.close();
+ println("DONE");
+
+}
+
+void SortLineArrays(int PosValues) { //could be fucked, 
+  boolean sorted = false;
+  int counter = 0;
+  float[] temp_array = new float[5];
+  while(!sorted) {
+    sorted = true;
+    for(int loc = 0; loc < PosValues-1; loc++) {
+      if(lineSums[loc][0] < lineSums[loc+1][0]) {
+        for(int i = 0; i < 5; i++) {
+          temp_array[i] = lineSums[loc][i];
+        }
+        for(int i = 0; i < 5; i++) {
+          lineSums[loc][i] = lineSums[loc+1][i];
+        }
+        for(int i = 0; i < 5; i++) {
+          lineSums[loc+1][i] = temp_array[i];
+        }
+        sorted = false;
+
+      }
+    }
+    counter++;
+    if(counter%1000 == 0) {
+     println(counter + " / " + PosValues); 
+    }
+  }
+}
+
+int CountPosValues() { //counts all the zero value line sums for reduced sorting load
+  int Counter = 0;
+  for (int loc = 0; loc < picSize; loc++) {
+    for(int anglestep = 0; anglestep < (round(PI/thetaincrement)); anglestep++) {
+      if(PicData[loc][anglestep][0] != 0) {
+          Counter++;
+      }
+    }
+  }
+  return Counter;
+}
+
+void GetImgDataDebug() {
+  int thetaStep = 0;
+    
+  for(i = dx1; i < dx2 + dx1; i += locRes) {
+    for(j = dy1; j < dy2 + dy1; j += locRes) {
+      if((j % 10) == 0 && (i % 10) == 0){
+      println(i +" : "+ j);
+      }
+      if(brightness(pixels[loc(i,j)]) > 0) {
+        thetaStep = 0;
+        for(theta = thetaincrement; theta < PI; theta += thetaincrement) {
+          check();
+          GetIntersectPlus(theta, i, j);
+         
+            if((j % 10) == 0 && (i % 10) == 0){
+              //println(i +" : "+ j + " : " + LineMarch());
+                }
+          PicData[loc(i,j)][thetaStep][0] = LineMarch();
+          PicData[loc(i,j)][thetaStep][1] = Pval(i, j, theta); //value for hough transform
+          PicData[loc(i,j)][thetaStep][2] = i;//location
+          PicData[loc(i,j)][thetaStep][3] = j; //location
+          PicData[loc(i,j)][thetaStep][4] = thetaStep; //angle
+          thetaStep++;
+        }
+      }
+    
+    }
+  }
+
+}
+
+void GetImgData() { //steps through the pixels of the image, storing relevant data
+  int thetaStep = 0;
+    
+  for(i = 0; i < imgW; i += locRes) {
+    for(j = 0; j < imgH; j += locRes) {
+//println(i +" : "+ j);
+      if(brightness(pixels[loc(i,j)]) > 0) {
+        thetaStep = 0;
+        for(theta = thetaincrement; theta < PI; theta += thetaincrement) {
+          check();
+          GetIntersectPlus(theta, i, j);
+          
+          println(i +" : "+ j + " : " + LineMarch());
+          PicData[loc(i,j)][thetaStep][0] = LineMarch();
+          PicData[loc(i,j)][thetaStep][1] = Pval(i, j, theta); //value for hough transform
+          PicData[loc(i,j)][thetaStep][2] = i;//location
+          PicData[loc(i,j)][thetaStep][3] = j; //location
+          PicData[loc(i,j)][thetaStep][4] = thetaStep; //angle
+          //lineSums[loc(i,j)][thetaStep] = LineMarch();
+          thetaStep++;
+        }
+      }
+    
+    }
+  }
+
+}
+
+float Pval (int i, int j, float theta) {
+ float P = (i*cos(theta)) + (j*sin(theta));
+  return P;  
+}
+
+int loc(int x, int y) { //converts cartesian coordinates to pixel coordinates
+ int loc = (x + (y * imgW)); 
+ return loc; 
+}
+
+int LineMarch() { //"Marches" along the line, adding up all the pixel values
+  int linesum = 0;
+  float rx, ry;
+  int t = 0;
+  float d = dist(px1, py1, px2, py2);
+  
+  strokeWeight(1);
+  stroke(255);
+  for(t = 0; t < d; t++) {
+    rx = px1 + (t/d)*(px2-px1); //parameretrize the line
+    ry = py1 + (t/d)*(py2-py1);
+        if (0 < rx && rx < imgW && 0 < ry && ry < imgH) { //sums pixels in the "box"
+      linesum += brightness(pixels[loc(floor(rx), floor(ry))]);
+    }
+  }
+  
+  return linesum;
+  }
+
+//finds lines intersections with the edges of the image for the +angle tolerance line
+void GetIntersectPlus(float theta, int i, int j) {
+  //converts to y = mx + b
+  float m = -(cos(theta)) / (sin(theta));
+  float PPlus = (i*cos(theta)) + (j*sin(theta));
+  float b = PPlus / sin(theta);
+
+  //checks y intercept when x = 0
+  if(line(0, theta, i, j) < 0) { //if y intercept is < 0
+    py1 = 0;
+    px1 = -b / m;
+  }
+  //if 0 <= y intercept <= height
+  else if(0 <= line(0, theta, i, j) && line(0, theta, i, j) <= imgH) {
+    px1 = 0;
+    py1 = b;
+  } else { // y intercept > height
+    py1 = imgH;
+    px1 = (imgH - b) / m;
+  }
+
+    //checks y intercept when x = img.width
+  if(line(imgW, theta, i, j) < 0) { //if y intercept is < 0
+    py2 = 0;
+    px2 = (-b/m);
+  }
+  //if 0 <= y intercept <= height
+  else if(0 <= line(imgW, theta, i, j) && line(imgW, theta, i, j) <= imgH) {
+    px2 = imgW;
+    py2 = (m * imgW) + b;
+  } else { // y intercept > height
+    py2 = imgH;
+    px2 = (imgH - b) / m;
+  }
+ 
+ }
+
+
+void check() {
+ if (theta == PI/2) {
+  theta += thetaincrement; 
+ }
+}
+
+float line(int x, float theta, int i, int j) {
+  float PPlus = (i*cos(theta)) + (j*sin(theta));
+  float y = (PPlus - (x*cos(theta)))/( sin(theta) );
+  return y;
+}
+
+
+void visualshit() {
+  strokeWeight(1);
+  //stroke(255, 0, 0); //red
+  //line(0, line(0, theta, i, j), img.width, line(img.width, theta, i, j));
+  stroke(0, 255, 0 );
+  strokeWeight(5);
+  point(i,j);
+}
+
+void printlnstat() {
+  println(px1 +" : "+ py1 + "\n" + px2 +" : "+ py2);
+  println("\n");
+  println("\n");
+  }
